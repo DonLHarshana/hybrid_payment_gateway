@@ -56,9 +56,9 @@ jobs:
           sarif_file: 'trivy-results.sarif'
           category: trivy-main
 
-      # Upload CSV artifact
+      # Upload CSV artifact (main)
       - name: Upload HIGH/CRITICAL CSV (main)
-        uses: actions/artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: trivy-high-critical-main
           path: trivy-high-critical-main.csv
@@ -98,9 +98,9 @@ jobs:
           sarif_file: 'trivy-val1-results.sarif'
           category: trivy-vulnerable
 
-      # Upload CSV artifact
+      # Upload CSV artifact (vulnerable)
       - name: Upload HIGH/CRITICAL CSV (vulnerable)
-        uses: actions/artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: trivy-high-critical-val1
           path: trivy-high-critical-val1.csv
