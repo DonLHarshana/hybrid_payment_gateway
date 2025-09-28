@@ -1,11 +1,66 @@
-# update old ubuntu image to test valnerabilities 
+# Vulnerable Docker image for testing ONLY
 FROM ubuntu:16.04
 
-# outdated packages testing 
-RUN apt-get update && apt-get install -y \
-    curl=7.47.0-1ubuntu2.19 \
-    openssl=1.0.2g-1ubuntu4.20 \
+LABEL maintainer="test-lab@example.invalid"
+
+# -----------------------------
+# Hard-coded credentials (fake)
+# -----------------------------
+ENV ADMIN_USER=admin
+ENV ADMIN_PASS=Password123!
+ENV DB_USER=testuser
+ENV DB_PASS=testpass
+
+# -----------------------------
+# Install outdated packages with known CVEs
+# -----------------------------
+RUN apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y \
+      openssh-server=1:7.2p2-4ubuntu2.8 \
+      apache2=2.4.18-2ubuntu3.22 \
+      php5=5.6.40+dfsg-0+deb8u12 \
+      php5-cli=5.6.40+dfsg-0+deb8u12 \
+      curl=7.47.0-1ubuntu2.19 \
+      wget=1.17.1-1ubuntu1.14 \
+      sudo=1.8.16-0ubuntu1.5 \
+      vim=2:7.4.1689-3ubuntu1.7 \
+      python=2.7.12~rc1-1ubuntu0.16.04.2 \
+      netcat=1.10-41ubuntu1 \
     && rm -rf /var/lib/apt/lists/*
 
-# testing simple app
-RUN echo "Testing valnerabilities" > /app.txt
+# -----------------------------
+# Create insecure user with sudo access
+# -----------------------------
+RUN useradd -m -s /bin/bash vulnuser && \
+    echo "vulnuser:vuln" | chpasswd && \
+    echo "vulnuser ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/vulnuser
+
+# -----------------------------
+# Hard-coded credentials file
+# -----------------------------
+RUN mkdir -p /opt/creds && \
+    printf "admin:%s\nmysql_user:%s\nmysql_pass:%s\n" "$ADMIN_PASS" "$DB_USER" "$DB_PASS" > /opt/creds/credentials.txt && \
+    chmod 666 /opt/creds/credentials.txt
+
+# -----------------------------
+# Vulnerable PHP web app (remote command execution)
+# -----------------------------
+RUN mkdir -p /var/www/html
+COPY app.php /var/www/html/app.php
+RUN chmod -R 777 /var/www/html
+
+# -----------------------------
+# Start SSH and Apache in single container (bad practice)
+# -----------------------------
+COPY start.sh /start.sh
+RUN chmod +x /start.sh
+
+# -----------------------------
+# Expose ports (attack surface)
+# -----------------------------
+EXPOSE 22 80
+
+# -----------------------------
+# Run both services
+# -----------------------------
+CMD ["/start.sh"]
