@@ -41,7 +41,25 @@ jobs:
           output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH'
 
+      - name: Build vulnerable image for testing
+        run: |
+          docker build -f Dockerfile.val1 -t docker.io/my-organization/my-val1-app:${{ github.sha }} . 
+
+      - name: Scan vulnerable image for testing
+        uses: aquasecurity/trivy-action@7b7aa264d83dc58691451798b4d117d53d21edfe
+        with:
+          image-ref: 'docker.io/my-organization/my-val1-app:${{ github.sha }}'
+          format: 'template'
+          template: '@/contrib/sarif.tpl'
+          output: 'trivy-val1-results.sarif'
+          severity: 'CRITICAL,HIGH'
+
       - name: Upload Trivy scan results to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
         with:
           sarif_file: 'trivy-results.sarif'
+
+      - name: Upload Trivy valnerability file 
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-val1-results.sarif'

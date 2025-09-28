@@ -1,0 +1,11 @@
+# update old ubuntu image to test valnerabilities 
+FROM ubuntu:16.04
+
+# outdated packages testing 
+RUN apt-get update && apt-get install -y \
+    curl=7.47.0-1ubuntu2.19 \
+    openssl=1.0.2g-1ubuntu4.20 \
+    && rm -rf /var/lib/apt/lists/*
+
+# testing simple app
+RUN echo "Testing valnerabilities" > /app.txt
