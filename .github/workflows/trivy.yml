@@ -22,11 +22,11 @@ jobs:
         uses: actions/checkout@v4
 
       # ------------------------------
-      # Build first Docker image
+      # Build main Dockerfile
       # ------------------------------
       - name: Build main image
         run: |
-          docker build -t docker.io/my-organization/my-app:${{ github.sha }} .
+          docker build -f Dockerfile -t docker.io/my-organization/my-app:${{ github.sha }} .
 
       # ------------------------------
       # Scan main image with Trivy
@@ -58,13 +58,13 @@ jobs:
 
       # Upload CSV artifact
       - name: Upload HIGH/CRITICAL CSV (main)
-        uses: actions/upload-artifact@v3
+        uses: actions/artifact@v3
         with:
           name: trivy-high-critical-main
           path: trivy-high-critical-main.csv
 
       # ------------------------------
-      # Build vulnerable image
+      # Build Dockerfile.val1
       # ------------------------------
       - name: Build vulnerable image
         run: |
@@ -100,7 +100,7 @@ jobs:
 
       # Upload CSV artifact
       - name: Upload HIGH/CRITICAL CSV (vulnerable)
-        uses: actions/upload-artifact@v3
+        uses: actions/artifact@v3
         with:
           name: trivy-high-critical-val1
           path: trivy-high-critical-val1.csv
