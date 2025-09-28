@@ -1,27 +1,18 @@
-# Use an old Ubuntu version with known CVEs
+# Dockerfile.nopins - ubuntu:16.04 no exact version pins (reliable build)
 FROM ubuntu:16.04
+ENV DEBIAN_FRONTEND=noninteractive
 
-# Install outdated packages (high/critical CVEs likely)
-RUN apt-get update && apt-get install -y \
-    openssl=1.0.2g-1ubuntu4.20 \
-    curl=7.47.0-1ubuntu2.19 \
-    wget=1.17.1-1ubuntu1.14 \
-    sudo=1.8.16-0ubuntu1.6 \
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      apache2 \
+      libapache2-mod-php \
+      php \
+      openssh-server \
+      curl \
+      wget \
+      sudo \
     && rm -rf /var/lib/apt/lists/*
 
-# Add a fake vulnerable app with credentials (for demo only)
-RUN echo "root:toor123" > /root/credentials.txt
-
-# Add a vulnerable PHP test page (command injection example)
-RUN apt-get update && apt-get install -y php libapache2-mod-php && rm -rf /var/lib/apt/lists/*
-RUN echo '<?php if(isset($_GET["cmd"])){system($_GET["cmd"]);} else {echo "Vulnerable Test";}' > /var/www/html/app.php
-
-# Expose HTTP and SSH ports
+RUN mkdir -p /var/www/html && echo '<?php echo "VULN"; ?>' > /var/www/html/index.php
+RUN mkdir -p /var/run/sshd
 EXPOSE 80 22
-
-# Install and start SSH server
-RUN apt-get update && apt-get install -y openssh-server && rm -rf /var/lib/apt/lists/*
-RUN mkdir /var/run/sshd
-
-# Start SSH + Apache (foreground)
 CMD ["/bin/bash", "-c", "/usr/sbin/sshd -D & apachectl -D FOREGROUND"]
