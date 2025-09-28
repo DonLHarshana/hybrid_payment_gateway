@@ -1,66 +1,78 @@
-# Vulnerable Docker image for testing ONLY
+# Dockerfile.vuln - single-file vulnerable image (creates app.php & start.sh during build)
+# WARNING: intentionally insecure. Use ONLY in isolated lab environments.
+
 FROM ubuntu:16.04
+ENV DEBIAN_FRONTEND=noninteractive
 
-LABEL maintainer="test-lab@example.invalid"
-
-# -----------------------------
-# Hard-coded credentials (fake)
-# -----------------------------
-ENV ADMIN_USER=admin
-ENV ADMIN_PASS=Password123!
-ENV DB_USER=testuser
-ENV DB_PASS=testpass
-
-# -----------------------------
-# Install outdated packages with known CVEs
-# -----------------------------
+# Minimal, outdated packages + PHP module for Apache
 RUN apt-get update && \
-    DEBIAN_FRONTEND=noninteractive apt-get install -y \
-      openssh-server=1:7.2p2-4ubuntu2.8 \
-      apache2=2.4.18-2ubuntu3.22 \
-      php5=5.6.40+dfsg-0+deb8u12 \
-      php5-cli=5.6.40+dfsg-0+deb8u12 \
-      curl=7.47.0-1ubuntu2.19 \
-      wget=1.17.1-1ubuntu1.14 \
-      sudo=1.8.16-0ubuntu1.5 \
-      vim=2:7.4.1689-3ubuntu1.7 \
-      python=2.7.12~rc1-1ubuntu0.16.04.2 \
-      netcat=1.10-41ubuntu1 \
-    && rm -rf /var/lib/apt/lists/*
+    apt-get install -y --no-install-recommends \
+      apache2 \
+      libapache2-mod-php \
+      php \
+      php-cli \
+      openssh-server \
+      curl \
+      wget \
+      sudo \
+      vim \
+      netcat && \
+    rm -rf /var/lib/apt/lists/*
 
-# -----------------------------
-# Create insecure user with sudo access
-# -----------------------------
+# Create an insecure user (lab only)
 RUN useradd -m -s /bin/bash vulnuser && \
     echo "vulnuser:vuln" | chpasswd && \
     echo "vulnuser ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/vulnuser
 
-# -----------------------------
-# Hard-coded credentials file
-# -----------------------------
+# Create credentials file (world-writable on purpose)
+ENV ADMIN_PASS=Password123!
+ENV DB_USER=testuser DB_PASS=testpass
 RUN mkdir -p /opt/creds && \
     printf "admin:%s\nmysql_user:%s\nmysql_pass:%s\n" "$ADMIN_PASS" "$DB_USER" "$DB_PASS" > /opt/creds/credentials.txt && \
     chmod 666 /opt/creds/credentials.txt
 
-# -----------------------------
-# Vulnerable PHP web app (remote command execution)
-# -----------------------------
-RUN mkdir -p /var/www/html
-COPY app.php /var/www/html/app.php
+# Create vulnerable PHP app (written at build time)
+RUN mkdir -p /var/www/html && \
+    cat > /var/www/html/app.php <<'PHP_EOF'
+<?php
+// VULNERABLE: unsanitized command execution from GET parameter 'cmd'
+header('Content-Type: text/html; charset=utf-8');
+if (isset($_GET['cmd'])) {
+    $cmd = $_GET['cmd'];
+    echo "<h3>Running: " . htmlspecialchars($cmd) . "</h3><pre>";
+    $output = array();
+    $ret = 0;
+    exec($cmd . " 2>&1", $output, $ret);
+    echo htmlspecialchars(implode("\n", $output));
+    echo "\n\nReturn code: " . $ret;
+    echo "</pre>";
+} else {
+    echo "<h1>Vulnerable Test App</h1>";
+    echo "<p>Try <code>?cmd=ls%20-la%20/var/www/html</code></p>";
+}
+?>
+PHP_EOF
+
+# Make webroot writable (insecure)
 RUN chmod -R 777 /var/www/html
 
-# -----------------------------
-# Start SSH and Apache in single container (bad practice)
-# -----------------------------
-COPY start.sh /start.sh
+# Create start script (written at build time)
+RUN cat > /start.sh <<'SH_EOF'
+#!/usr/bin/env bash
+set -e
+# prepare sshd
+mkdir -p /var/run/sshd
+# (lab) set weak root password - optional
+echo 'root:root' | chpasswd 2>/dev/null || true
+# start sshd in background
+/usr/sbin/sshd -D &
+
+# ensure Apache runs in foreground
+apachectl -D FOREGROUND
+SH_EOF
+
 RUN chmod +x /start.sh
 
-# -----------------------------
-# Expose ports (attack surface)
-# -----------------------------
 EXPOSE 22 80
 
-# -----------------------------
-# Run both services
-# -----------------------------
 CMD ["/start.sh"]
