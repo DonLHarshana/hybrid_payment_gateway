@@ -21,18 +21,22 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      
       - name: Install Trivy
         run: |
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh
 
+      
       # Build main Dockerfile image 
       - name: Build main image
         run: |
           docker build -f Dockerfile -t docker.io/my-organization/my-app:${{ github.sha }} .
 
-      # Scan main image with Trivy (vulnerabilities only)
+      
+      # Scan main image with Trivy
+     
       - name: Trivy scan SARIF (main)
-        uses: aquasecurity/trivy-action@v0.5.0  # <-- Using stable version
+        uses: aquasecurity/trivy-action@7b7aa264d83dc58691451798b4d117d53d21edfe
         with:
           image-ref: 'docker.io/my-organization/my-app:${{ github.sha }}'
           format: 'template'
@@ -47,14 +51,16 @@ jobs:
           sarif_file: 'trivy-results.sarif'
           category: trivy-main
 
-      # Build Dockerfile.val1 (vulnerable image)
+      # Build Dockerfile.val1
       - name: Build vulnerable image
         run: |
           docker build -f Dockerfile.val1 -t docker.io/my-organization/my-val1-app:${{ github.sha }} .
 
-      # Scan vulnerable image with Trivy (vulnerabilities only)
+      
+      # Scan vulnerable image with Trivy (SARIF)
+      
       - name: Trivy scan SARIF (vulnerable)
-        uses: aquasecurity/trivy-action@v0.5.0  # <-- Using stable version
+        uses: aquasecurity/trivy-action@7b7aa264d83dc58691451798b4d117d53d21edfe
         with:
           image-ref: 'docker.io/my-organization/my-val1-app:${{ github.sha }}'
           format: 'template'
