@@ -1,29 +1,49 @@
-# Use an outdated base image for testing vulnerabilities
+# ------------------------------------------------------------------------------
+# INTENTIONALLY INSECURE DOCKERFILE — for thesis testing only
+# Thesis: AI-Based Anomaly Detection in Payment Gateways for Cybersecurity Enhancement
+# Components under test: Trivy (rule-based) + Isolation Forest (ML) + CI/CD on GitHub Actions
+# This image purposefully contains:
+#  - Outdated base (Ubuntu 16.04)
+#  - Hardcoded credentials (ENV, files, code)
+#  - Insecure SSH (root login + password auth)
+#  - Sample “payment” synthetic data w/ fake patterns
+# ------------------------------------------------------------------------------
+
 FROM ubuntu:16.04
 
-# Install outdated packages to simulate security risks
-RUN apt-get update && apt-get install -y \
-    apache2 \
-    libapache2-mod-php \
-    php \
-    wget \
-    git \
-    sudo \
-    ca-certificates \
+LABEL maintainer="Don Lahiru Harshana Atigala"
+LABEL thesis.title="AI-Based Anomaly Detection in Payment Gateways for Cybersecurity Enhancement"
+LABEL thesis.supervisor="Asoc.prof Dr.sc.oec Ingars Eriņš"
+LABEL thesis.module="DevSecOps CI/CD - Trivy + Isolation Forest"
+LABEL purpose="INTENTIONALLY INSECURE for vulnerability & secret scanning demos"
+
+ENV DEBIAN_FRONTEND=noninteractive
+
+# --- Packages (some old/outdated on 16.04) ---
+RUN apt-get update && apt-get install -y --no-install-recommends \
+      apache2 \
+      libapache2-mod-php \
+      php \
+      wget \
+      git \
+      sudo \
+      ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Set an insecure environment variable (hardcoded credentials)
+# --- Insecure ENV secrets (for Trivy secret scanner to catch) ---
 ENV DB_PASSWORD=admin1234
 
-# Simulate hardcoded secret in the configuration file
+# --- Simulate hardcoded secret in the configuration file ---
 RUN echo "<?php \$DB_PASSWORD = \"admin1234\"; ?>" > /var/www/html/config.php
 
-# Expose SSH service with default insecure settings
-RUN apt-get install -y openssh-server && \
+# --- Expose SSH service with default insecure settings ---
+RUN apt-get update && \
+    apt-get install -y openssh-server && \
     sed -i 's/PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config && \
-    echo 'root:password' | chpasswd
+    echo 'root:password' | chpasswd && \
+    mkdir /var/run/sshd
 
-# Expose the default port 80 (HTTP) for the application
+# --- Expose the default port 80 (HTTP) for the application ---
 EXPOSE 80 22
 
 # Run the web service and SSH in the foreground
