@@ -48,18 +48,19 @@ ENV DB_HOST=localhost \
 # --- Web root with vulnerable PHP ---
 RUN mkdir -p /var/www/html
 # Index with minimal leak + phpinfo link
-RUN bash -lc 'cat > /var/www/html/index.php << "PHP"
+RUN bash -lc 'cat > /var/www/html/index.php << "EOF"
 <?php
 echo "<h1>Payment Gateway Test Node</h1>";
 echo "<p>Status: <strong>VULN</strong></p>";
 echo "<p><a href=\"phpinfo.php\">phpinfo()</a></p>";
 ?>
-PHP'
+EOF'
+
 # phpinfo() (often flagged as information disclosure)
 RUN bash -lc 'echo "<?php phpinfo(); ?>" > /var/www/html/phpinfo.php'
 
 # Config file with hardcoded creds (classic signature)
-RUN bash -lc 'cat > /var/www/html/config.php << "PHP"
+RUN bash -lc 'cat > /var/www/html/config.php << "EOF"
 <?php
 \$DB_HOST = "localhost";
 \$DB_NAME = "payments";
@@ -67,30 +68,30 @@ RUN bash -lc 'cat > /var/www/html/config.php << "PHP"
 \$DB_PASS = "Admin123!"; // hardcoded
 \$PAYMENT_GATEWAY_KEY = "sk_live_FAKE_1234567890abcdef";
 ?>
-PHP'
+EOF'
 
 # .env with mixed secrets
-RUN bash -lc 'cat > /var/www/html/.env << "ENV"
+RUN bash -lc 'cat > /var/www/html/.env << "EOF"
 # Intentionally hardcoded for scanner demos
 DATABASE_URL=mysql://admin:Admin123!@localhost:3306/payments
 JWT_SECRET=supersecretjwtkeyFAKE
 STRIPE_SECRET=sk_live_FAKE_9876543210
 PINECONE_API_KEY=pcn-FAKE-KEY-1234567890
 TELEGRAM_BOT_TOKEN=1234567890:FAKE-TOKEN-abcdef123456
-ENV'
+EOF'
 
 # Fake AWS credentials file (classic AKIA pattern)
 RUN mkdir -p /root/.aws && \
-    bash -lc 'cat > /root/.aws/credentials << "AWS"
+    bash -lc 'cat > /root/.aws/credentials << "EOF"
 [default]
 aws_access_key_id = AKIAFAKE1234567890
 aws_secret_access_key = FAKEwJalrXUtnFEMI/K7MDENG/bPxRfiCYFAKEKEY
 region = us-east-1
-AWS'
+EOF'
 
 # Fake GCP service account key (PEM/PKCS8 markers trigger detectors)
 RUN mkdir -p /secrets && \
-    bash -lc 'cat > /secrets/gcp-service-account.json << "GCP"
+    bash -lc 'cat > /secrets/gcp-service-account.json << "EOF"
 {
   "type": "service_account",
   "project_id": "thesis-lab",
@@ -100,19 +101,19 @@ RUN mkdir -p /secrets && \
   "client_id": "123456789012345678901",
   "auth_uri": "https://accounts.google.com/o/oauth2/auth"
 }
-GCP'
+EOF'
 
 # Drop a fake RSA private key (very detectable)
-RUN bash -lc 'cat > /root/id_rsa << "KEY"
+RUN bash -lc 'cat > /root/id_rsa << "EOF"
 -----BEGIN RSA PRIVATE KEY-----
 MIIFAKEBASE64BLOCK/+/+morefake==
 -----END RSA PRIVATE KEY-----
-KEY' \
+EOF' \
  && chmod 600 /root/id_rsa
 
 # Synthetic “payments” data (no real PII; patterns simulate card-like strings)
 RUN mkdir -p /data && \
-    bash -lc 'cat > /data/transactions.json << "JSON"
+    bash -lc 'cat > /data/transactions.json << "EOF"
 [
   {"tx_id":"tx-0001","amount":199.99,"currency":"EUR","card":"4111111111111111","ip":"10.0.0.15","status":"approved"},
   {"tx_id":"tx-0002","amount":9999.00,"currency":"USD","card":"5555555555554444","ip":"203.0.113.45","status":"approved"},
@@ -121,7 +122,7 @@ RUN mkdir -p /data && \
   {"tx_id":"tx-0005","amount":123.45,"currency":"USD","card":"378282246310005","ip":"10.0.0.42","status":"approved"},
   {"tx_id":"tx-0006","amount":25000.00,"currency":"EUR","card":"6011111111111117","ip":"203.0.113.99","status":"approved"}
 ]
-JSON'
+EOF'
 
 # Make the data and secrets world-readable (bad perms)
 RUN chmod -R 777 /var/www/html /data /secrets
@@ -133,7 +134,7 @@ RUN mkdir -p /var/run/sshd && \
     echo "root:P@ssw0rd123!" | chpasswd
 
 # --- Apache: enable index.php and inject a tiny “payment check” page with creds in code ---
-RUN bash -lc 'cat > /var/www/html/pay.php << "PHP"
+RUN bash -lc 'cat > /var/www/html/pay.php << "EOF"
 <?php
 require_once __DIR__ . "/config.php";
 if (\$_GET["action"] === "pay") {
@@ -141,7 +142,7 @@ if (\$_GET["action"] === "pay") {
 } else {
   echo "Use ?action=pay";
 }
-PHP'
+EOF'
 
 EXPOSE 80 22
 
