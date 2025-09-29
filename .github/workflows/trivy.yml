@@ -32,7 +32,7 @@ jobs:
 
       # Scan main image with Trivy (vulnerabilities only)
       - name: Trivy scan SARIF (main)
-        uses: aquasecurity/trivy-action@v0.0.21  # Update action version if needed
+        uses: aquasecurity/trivy-action@v0.5.0  # <-- Use a stable version, v0.5.0
         with:
           image-ref: 'docker.io/my-organization/my-app:${{ github.sha }}'
           format: 'template'
@@ -54,7 +54,7 @@ jobs:
 
       # Scan vulnerable image with Trivy (vulnerabilities only)
       - name: Trivy scan SARIF (vulnerable)
-        uses: aquasecurity/trivy-action@v0.0.21  # Update action version if needed
+        uses: aquasecurity/trivy-action@v0.5.0  # <-- Use the stable version v0.5.0
         with:
           image-ref: 'docker.io/my-organization/my-val1-app:${{ github.sha }}'
           format: 'template'
