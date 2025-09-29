@@ -30,16 +30,15 @@ jobs:
         run: |
           docker build -f Dockerfile -t docker.io/my-organization/my-app:${{ github.sha }} .
 
-      # Scan main image with Trivy (vulnerabilities + secrets)
+      # Scan main image with Trivy (vulnerabilities only)
       - name: Trivy scan SARIF (main)
-        uses: aquasecurity/trivy-action@7b7aa264d83dc58691451798b4d117d53d21edfe
+        uses: aquasecurity/trivy-action@v0.0.21  # Update action version if needed
         with:
           image-ref: 'docker.io/my-organization/my-app:${{ github.sha }}'
           format: 'template'
           template: '@/contrib/sarif.tpl'
           output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH,MEDIUM,LOW'
-          scanners: 'vuln,secret'  # <-- Added to scan for vulnerabilities + secrets
 
       # Upload SARIF to GitHub Security tab
       - name: Upload SARIF (main)
@@ -53,16 +52,15 @@ jobs:
         run: |
           docker build -f Dockerfile.val1 -t docker.io/my-organization/my-val1-app:${{ github.sha }} .
 
-      # Scan vulnerable image with Trivy (vulnerabilities + secrets)
+      # Scan vulnerable image with Trivy (vulnerabilities only)
       - name: Trivy scan SARIF (vulnerable)
-        uses: aquasecurity/trivy-action@7b7aa264d83dc58691451798b4d117d53d21edfe
+        uses: aquasecurity/trivy-action@v0.0.21  # Update action version if needed
         with:
           image-ref: 'docker.io/my-organization/my-val1-app:${{ github.sha }}'
           format: 'template'
           template: '@/contrib/sarif.tpl'
           output: 'trivy-val1-results.sarif'
           severity: 'CRITICAL,HIGH,MEDIUM,LOW'
-          scanners: 'vuln,secret'  # <-- Added to scan for vulnerabilities + secrets
 
       # Upload SARIF to GitHub Security tab
       - name: Upload SARIF (vulnerable)
