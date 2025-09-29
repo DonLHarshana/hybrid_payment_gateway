@@ -48,80 +48,32 @@ ENV DB_HOST=localhost \
 # --- Web root with vulnerable PHP ---
 RUN mkdir -p /var/www/html
 # Index with minimal leak + phpinfo link
-RUN bash -lc 'cat > /var/www/html/index.php << "PHP"
-<?php
-echo "<h1>Payment Gateway Test Node</h1>";
-echo "<p>Status: <strong>VULN</strong></p>";
-echo "<p><a href=\"phpinfo.php\">phpinfo()</a></p>";
-?>
-PHP'
+RUN echo "<?php echo \"<h1>Payment Gateway Test Node</h1><p>Status: <strong>VULN</strong></p><p><a href='phpinfo.php'>phpinfo()</a></p>\"; ?>" > /var/www/html/index.php
+
 # phpinfo() (often flagged as information disclosure)
-RUN bash -lc 'echo "<?php phpinfo(); ?>" > /var/www/html/phpinfo.php'
+RUN echo "<?php phpinfo(); ?>" > /var/www/html/phpinfo.php
 
 # Config file with hardcoded creds (classic signature)
-RUN bash -lc 'cat > /var/www/html/config.php << "PHP"
-<?php
-\$DB_HOST = "localhost";
-\$DB_NAME = "payments";
-\$DB_USER = "admin";
-\$DB_PASS = "Admin123!"; // hardcoded
-\$PAYMENT_GATEWAY_KEY = "sk_live_FAKE_1234567890abcdef";
-?>
-PHP'
+RUN echo "<?php \$DB_HOST = \"localhost\"; \$DB_NAME = \"payments\"; \$DB_USER = \"admin\"; \$DB_PASS = \"Admin123!\"; \$PAYMENT_GATEWAY_KEY = \"sk_live_FAKE_1234567890abcdef\"; ?>" > /var/www/html/config.php
 
 # .env with mixed secrets
-RUN bash -lc 'cat > /var/www/html/.env << "ENV"
-# Intentionally hardcoded for scanner demos
-DATABASE_URL=mysql://admin:Admin123!@localhost:3306/payments
-JWT_SECRET=supersecretjwtkeyFAKE
-STRIPE_SECRET=sk_live_FAKE_9876543210
-PINECONE_API_KEY=pcn-FAKE-KEY-1234567890
-TELEGRAM_BOT_TOKEN=1234567890:FAKE-TOKEN-abcdef123456
-ENV'
+RUN echo "DATABASE_URL=mysql://admin:Admin123!@localhost:3306/payments\nJWT_SECRET=supersecretjwtkeyFAKE\nSTRIPE_SECRET=sk_live_FAKE_9876543210\nPINECONE_API_KEY=pcn-FAKE-KEY-1234567890\nTELEGRAM_BOT_TOKEN=1234567890:FAKE-TOKEN-abcdef123456" > /var/www/html/.env
 
 # Fake AWS credentials file (classic AKIA pattern)
 RUN mkdir -p /root/.aws && \
-    bash -lc 'cat > /root/.aws/credentials << "AWS"
-[default]
-aws_access_key_id = AKIAFAKE1234567890
-aws_secret_access_key = FAKEwJalrXUtnFEMI/K7MDENG/bPxRfiCYFAKEKEY
-region = us-east-1
-AWS'
+    echo "[default]\naws_access_key_id = AKIAFAKE1234567890\naws_secret_access_key = FAKEwJalrXUtnFEMI/K7MDENG/bPxRfiCYFAKEKEY\nregion = us-east-1" > /root/.aws/credentials
 
 # Fake GCP service account key (PEM/PKCS8 markers trigger detectors)
 RUN mkdir -p /secrets && \
-    bash -lc 'cat > /secrets/gcp-service-account.json << "GCP"
-{
-  "type": "service_account",
-  "project_id": "thesis-lab",
-  "private_key_id": "fakeprivatekeyid1234567890",
-  "private_key": "-----BEGIN PRIVATE KEY-----\nMIIFAKEBASE64BLOCK/+/+morefake==\n-----END PRIVATE KEY-----\n",
-  "client_email": "svc-thesis@thesis-lab.iam.gserviceaccount.com",
-  "client_id": "123456789012345678901",
-  "auth_uri": "https://accounts.google.com/o/oauth2/auth"
-}
-GCP'
+    echo "{\n  \"type\": \"service_account\",\n  \"project_id\": \"thesis-lab\",\n  \"private_key_id\": \"fakeprivatekeyid1234567890\",\n  \"private_key\": \"-----BEGIN PRIVATE KEY-----\\nMIIFAKEBASE64BLOCK/+/+morefake==\\n-----END PRIVATE KEY-----\\n\",\n  \"client_email\": \"svc-thesis@thesis-lab.iam.gserviceaccount.com\",\n  \"client_id\": \"123456789012345678901\",\n  \"auth_uri\": \"https://accounts.google.com/o/oauth2/auth\"\n}" > /secrets/gcp-service-account.json
 
 # Drop a fake RSA private key (very detectable)
-RUN bash -lc 'cat > /root/id_rsa << "KEY"
------BEGIN RSA PRIVATE KEY-----
-MIIFAKEBASE64BLOCK/+/+morefake==
------END RSA PRIVATE KEY-----
-KEY' \
- && chmod 600 /root/id_rsa
+RUN echo "-----BEGIN RSA PRIVATE KEY-----\nMIIFAKEBASE64BLOCK/+/+morefake==\n-----END RSA PRIVATE KEY-----" > /root/id_rsa && \
+    chmod 600 /root/id_rsa
 
 # Synthetic “payments” data (no real PII; patterns simulate card-like strings)
 RUN mkdir -p /data && \
-    bash -lc 'cat > /data/transactions.json << "JSON"
-[
-  {"tx_id":"tx-0001","amount":199.99,"currency":"EUR","card":"4111111111111111","ip":"10.0.0.15","status":"approved"},
-  {"tx_id":"tx-0002","amount":9999.00,"currency":"USD","card":"5555555555554444","ip":"203.0.113.45","status":"approved"},
-  {"tx_id":"tx-0003","amount":5.00,"currency":"EUR","card":"4000000000009995","ip":"198.51.100.22","status":"declined"},
-  {"tx_id":"tx-0004","amount":1500.00,"currency":"EUR","card":"4242424242424242","ip":"192.0.2.10","status":"approved"},
-  {"tx_id":"tx-0005","amount":123.45,"currency":"USD","card":"378282246310005","ip":"10.0.0.42","status":"approved"},
-  {"tx_id":"tx-0006","amount":25000.00,"currency":"EUR","card":"6011111111111117","ip":"203.0.113.99","status":"approved"}
-]
-JSON'
+    echo "[\n  {\"tx_id\":\"tx-0001\",\"amount\":199.99,\"currency\":\"EUR\",\"card\":\"4111111111111111\",\"ip\":\"10.0.0.15\",\"status\":\"approved\"},\n  {\"tx_id\":\"tx-0002\",\"amount\":9999.00,\"currency\":\"USD\",\"card\":\"5555555555554444\",\"ip\":\"203.0.113.45\",\"status\":\"approved\"},\n  {\"tx_id\":\"tx-0003\",\"amount\":5.00,\"currency\":\"EUR\",\"card\":\"4000000000009995\",\"ip\":\"198.51.100.22\",\"status\":\"declined\"},\n  {\"tx_id\":\"tx-0004\",\"amount\":1500.00,\"currency\":\"EUR\",\"card\":\"4242424242424242\",\"ip\":\"192.0.2.10\",\"status\":\"approved\"},\n  {\"tx_id\":\"tx-0005\",\"amount\":123.45,\"currency\":\"USD\",\"card\":\"378282246310005\",\"ip\":\"10.0.0.42\",\"status\":\"approved\"},\n  {\"tx_id\":\"tx-0006\",\"amount\":25000.00,\"currency\":\"EUR\",\"card\":\"6011111111111117\",\"ip\":\"203.0.113.99\",\"status\":\"approved\"}\n]" > /data/transactions.json
 
 # Make the data and secrets world-readable (bad perms)
 RUN chmod -R 777 /var/www/html /data /secrets
@@ -133,15 +85,7 @@ RUN mkdir -p /var/run/sshd && \
     echo "root:P@ssw0rd123!" | chpasswd
 
 # --- Apache: enable index.php and inject a tiny “payment check” page with creds in code ---
-RUN bash -lc 'cat > /var/www/html/pay.php << "PHP"
-<?php
-require_once __DIR__ . "/config.php";
-if (\$_GET["action"] === "pay") {
-  echo "Processing with key: " . \$PAYMENT_GATEWAY_KEY; // leaking secret
-} else {
-  echo "Use ?action=pay";
-}
-PHP'
+RUN echo "<?php\nrequire_once __DIR__ . \"/config.php\";\nif (\$_GET[\"action\"] === \"pay\") {\n  echo \"Processing with key: \" . \$PAYMENT_GATEWAY_KEY; // leaking secret\n} else {\n  echo \"Use ?action=pay\";\n}\n?>" > /var/www/html/pay.php
 
 EXPOSE 80 22
 
