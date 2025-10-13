@@ -46,7 +46,8 @@ def inject(template_dir: Path, out_dir: Path, gt_csv: Path):
                 idx = text.index(token)
                 line_no = text.count("\n", 0, idx) + 1
                 val = gen()
-                gt_rows.append({"type": token.strip("{}"), "file": str(p), "line": line_no})
+                rel = p.relative_to(out_dir)
+                gt_rows.append({"type": token.strip("{}"), "file": str(rel), "line": line_no})
                 text = text.replace(token, val, 1)
                 changed = True
         if changed:
