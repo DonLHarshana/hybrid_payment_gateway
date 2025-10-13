@@ -1,5 +1,4 @@
 name: trivy-only
-
 on:
   push:
     branches: [ "main" ]
@@ -11,26 +10,33 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        set_id: [ "0001" ]   # add more later: "0002","0003",...
+        set_id: [ "0001" ]   # add "0002","0003",... later
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Setup Python (stdlib only; no extra deps)
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
 
+      - name: Prepare folders
+        run: mkdir -p datasets artifacts
+
       - name: Generate payment set (files with synthetic secrets)
         run: python tools/make_payment_set_trivy.py --id ${{ matrix.set_id }}
+
+      - name: Show generated tree (debug)
+        run: ls -R datasets/payment_set_${{ matrix.set_id }}
 
       - name: Install Trivy
         run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh
 
-      - name: Trivy filesystem scan (secrets + config) on the generated folder
+      - name: Trivy filesystem scan (secrets + misconfig) on the generated folder
         run: |
-          ./bin/trivy fs --scanners secret,config \
-            datasets/payment_set_${{ matrix.set_id }} \
+          mkdir -p artifacts
+          TARGET="datasets/payment_set_${{ matrix.set_id }}"
+          ./bin/trivy fs --scanners secret,misconfig "$TARGET" \
             --format sarif -o artifacts/${{ matrix.set_id }}_trivy.sarif
 
       - name: Score Trivy (TP/FP/FN, precision/recall/F1)
