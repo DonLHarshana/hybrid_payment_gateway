@@ -1,76 +1,49 @@
-name: trivy
-
+name: trivy-only
 on:
   push:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
 
-permissions:
-  contents: read
-
 jobs:
-  build:
-    permissions:
-      contents: read
-      security-events: write
-      actions: read
-    name: Build and Scan
+  trivy-eval:
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        set_id: [ "0001" ]   # add "0002","0003",... later
     steps:
-      - name: Checkout code
+      - name: Checkout
         uses: actions/checkout@v4
 
-      
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Prepare folders
+        run: mkdir -p datasets artifacts
+
+      - name: Generate payment set (files with synthetic secrets)
+        run: python tools/make_payment_set_trivy.py --id ${{ matrix.set_id }}
+
+      - name: Show generated tree (debug)
+        run: ls -R datasets/payment_set_${{ matrix.set_id }}
+
       - name: Install Trivy
+        run: curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh
+
+      - name: Trivy filesystem scan (secrets + misconfig) on the generated folder
         run: |
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh
+          mkdir -p artifacts
+          TARGET="datasets/payment_set_${{ matrix.set_id }}"
+          ./bin/trivy fs --scanners secret,misconfig "$TARGET" \
+            --format sarif -o artifacts/${{ matrix.set_id }}_trivy.sarif
 
-      
-      # Build main Dockerfile image 
-      - name: Build main image
-        run: |
-          docker build -f Dockerfile -t docker.io/my-organization/my-app:${{ github.sha }} .
+      - name: Score Trivy (TP/FP/FN, precision/recall/F1)
+        run: python tools/score_trivy.py
 
-      
-      # Scan main image with Trivy
-     
-      - name: Trivy scan SARIF (main)
-        uses: aquasecurity/trivy-action@7b7aa264d83dc58691451798b4d117d53d21edfe
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
         with:
-          image-ref: 'docker.io/my-organization/my-app:${{ github.sha }}'
-          format: 'template'
-          template: '@/contrib/sarif.tpl'
-          output: 'trivy-results.sarif'
-          severity: 'CRITICAL,HIGH,MEDIUM,LOW'
-
-      # Upload SARIF to GitHub Security tab
-      - name: Upload SARIF (main)
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: 'trivy-results.sarif'
-          category: trivy-main
-
-      # Build Dockerfile.val1
-      - name: Build vulnerable image
-        run: |
-          docker build -f Dockerfile.val1 -t docker.io/my-organization/my-val1-app:${{ github.sha }} .
-
-      
-      # Scan vulnerable image with Trivy (SARIF)
-      
-      - name: Trivy scan SARIF (vulnerable)
-        uses: aquasecurity/trivy-action@7b7aa264d83dc58691451798b4d117d53d21edfe
-        with:
-          image-ref: 'docker.io/my-organization/my-val1-app:${{ github.sha }}'
-          format: 'template'
-          template: '@/contrib/sarif.tpl'
-          output: 'trivy-val1-results.sarif'
-          severity: 'CRITICAL,HIGH,MEDIUM,LOW'
-
-      # Upload SARIF to GitHub Security tab
-      - name: Upload SARIF (vulnerable)
-        uses: github/codeql-action/upload-sarif@v3
-        with:
-          sarif_file: 'trivy-val1-results.sarif'
-          category: trivy-vulnerable
+          name: trivy-results-${{ matrix.set_id }}
+          path: artifacts/
